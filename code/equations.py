@@ -1,6 +1,7 @@
 import copy
 from functools import reduce
 import math
+import matplotlib.pyplot as plt
 import numpy as np
 from typing import Callable
 
@@ -389,27 +390,49 @@ def gen_norms(count: int, params: list[tuple[float,float]|tuple[float,float,floa
         if len(params_i) > 2:
             minv = params_i[2]
             maxv = params_i[3]
-            distribution = list(map(lambda v: min(max(v, minv), maxv), distribution))
+            valid_values = []
+            for v in distribution:
+                while v < minv or v > maxv:
+                    v = np.random.normal(size=1, loc=loc, scale=scale)[0]
+                valid_values.append(v)
+            distribution = valid_values
 
         ret.append(distribution)
     
     return ret
 
-def gen_users(n: int):
+def gen_users(n: int, plot=False):
     ret: list[User] = []
     
     fs, Cys, ds, Ps = gen_norms(n, [
-        [1e9, 1.0e9, 0.2e9, 10e9], # (f)requency
-        [200e9, 100e9, 100e9, 1e12], # (Cy)cles task requires
-        [200e6, 1e9, 10e6, 1e12], # (d)ata bytes task requires
-        [2, 1, 1, 4] # (P)ower to transmit with
+        [2e9, 0.5e9, 0.1e9, 10e9], # (f)requency
+        [2e12, 1e12, 0.2e12, 1e15], # (Cy)cles task requires
+        [200e6, 200e6, 10e6, 1e12], # (d)ata bytes task requires
+        [2, 1, 0.1, 4] # (P)ower to transmit with
     ])
     for i in range(n):
         ret.append(User(fs[i], Cys[i], ds[i], Ps[i], η=0.5, U_0=0))
     
+    if plot:
+        fig, ax = plt.subplots(2, 2)
+        user_attributes = {
+            "Frequency (GHz)": np.array(fs)/1e9,
+            "Cycles (THz)": np.array(Cys)/1e12,
+            "Bytes (MBs)": np.array(ds)/1e6,
+            "Transmission Power (dBm)": Ps,
+        }
+        plot_idx = 0
+        for title in user_attributes.keys():
+            x, y = int(plot_idx/2), plot_idx%2
+            attr = user_attributes[title]
+            ax[x][y].hist( attr, np.linspace(min(attr),max(attr),int(n/5)) )
+            ax[x][y].set_title(title)
+            plot_idx += 1
+        plt.show()
+
     return ret
 
-def gen_resource_providers(all_users: list[User], n: int, f_tots: list[float]=None, W_tots: list[float]=None):
+def gen_resource_providers(all_users: list[User], n: int, f_tots: list[float]=None, W_tots: list[float]=None, plot=False):
     ret: list[ResourceProvider] = []
     
     if f_tots == None and W_tots == None:
@@ -420,13 +443,38 @@ def gen_resource_providers(all_users: list[User], n: int, f_tots: list[float]=No
     for i in range(n):
         ret.append(ResourceProvider(all_users, f_tot=f_tots[i], W_tot=W_tots[i]))
     
+    if plot:
+        rp_attributes = {
+            "Frequency (GHz)": (f_tots, 3e9+3e9*2, 9),
+            "Bandwidth (MBs)": (W_tots, 5e6+20e6*2, 6),
+        }
+        if n < 10:
+            fig, ax = plt.subplots()
+            offset, width = 0, 0.25
+            for title in rp_attributes.keys():
+                attr, attr_max, e = rp_attributes[title]
+                div_val = 10**e
+                rects = ax.bar(np.array(range(n)) + offset, np.array(attr)/attr_max, width, label=title)
+                ax.bar_label(rects, ["%.2F" % (v/div_val) for v in attr])
+                offset += width
+            ax.legend()
+            plt.show()
+        else:
+            fig, ax = plt.subplots(2, 1)
+            plot_idx = 0
+            for title in rp_attributes.keys():
+                x = plot_idx % 2
+                attr, attr_max = rp_attributes[title]
+                ax[x].hist( attr, np.linspace(min(attr),max(attr),int(n/5)) )
+                ax[x].set_title(title)
+                plot_idx += 1
+        plt.show()
+    
     return ret
 
 # testing exec_online_pmmra
-_all_users = gen_users(50)
-_all_rps = gen_resource_providers(_all_users, 5)
-arp_ftots = [rp.f_tot for rp in _all_rps]
-arp_Wtots = [rp.W_tot for rp in _all_rps]
+_all_users = gen_users(50, plot=True)
+_all_rps = gen_resource_providers(_all_users, 5, plot=False)
 generate_bids(_all_users, _all_rps)
 A = exec_online_pmmra(_all_users, _all_rps)
-print(A)
+# print(A)
