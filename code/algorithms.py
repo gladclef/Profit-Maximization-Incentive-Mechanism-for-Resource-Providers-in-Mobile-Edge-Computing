@@ -54,7 +54,9 @@ def exec_online_pmmra(users: list[User], rps: list[ResourceProvider]) -> np.ndar
         np.ndarray: matrix of 0's and 1's, where matched RPs (index 0) and users (index 1)
                     are indicated by a 1.
     """
-    A = np.ndarray((len(rps),len(users)), order='F')
+    rp_indexes = [rp.idx for rp in rps]
+    user_indexes = [user.idx for user in users]
+    A = np.ndarray( (max(rp_indexes)+1,max(user_indexes)+1), order='F' )
     A.fill(0)
     J = []
     
